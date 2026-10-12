@@ -80,3 +80,6 @@ python build_zip_log_report.py 'C:\logs\archive.zip' --serve
 его с Python-частью `SabyLogReport.cmd` после `#__PYTHON_PAYLOAD__`.
 Аналогично синхронизируются `build_nine_methods_report.py` и `ReportBackrgoudProcees.cmd`.
 Правила дальнейшей работы записаны в `AGENTS.md`.
+
+Для обновления только названий уже установленных пунктов меню откройте
+`UpdateReportMenuNames.reg` двойным кликом и подтвердите импорт Windows.
