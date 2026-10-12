@@ -23,8 +23,8 @@ for ($i = 0; $i -lt $keys.Count; $i++) {
     $key = $keys[$i]
     $argument = if ($i -eq 0) { '%1' } else { '%V' }
     New-Item -Path $key -Force | Out-Null
-    Set-Item -LiteralPath $key -Value 'Показать фоновые процессы'
-    New-ItemProperty -LiteralPath $key -Name MUIVerb -Value 'Показать фоновые процессы' -PropertyType String -Force | Out-Null
+    Set-Item -LiteralPath $key -Value 'Построить отчет фоновых синхронизаций'
+    New-ItemProperty -LiteralPath $key -Name MUIVerb -Value 'Построить отчет фоновых синхронизаций' -PropertyType String -Force | Out-Null
     New-ItemProperty -LiteralPath $key -Name Position -Value 'Top' -PropertyType String -Force | Out-Null
     New-ItemProperty -LiteralPath $key -Name Icon -Value 'powershell.exe,0' -PropertyType String -Force | Out-Null
     New-Item -Path "$key\command" -Force | Out-Null

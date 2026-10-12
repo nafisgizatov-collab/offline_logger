@@ -11,8 +11,8 @@ foreach ($file in @($runner, (Join-Path $PSScriptRoot 'build_zip_log_report.py')
     if (!(Test-Path -LiteralPath $file)) { throw "Missing file: $file" }
 }
 New-Item -Path "$key\command" -Force | Out-Null
-Set-Item -LiteralPath $key -Value 'построить отчет логов оффлайн'
-New-ItemProperty -LiteralPath $key -Name MUIVerb -Value 'построить отчет логов оффлайн' -PropertyType String -Force | Out-Null
+Set-Item -LiteralPath $key -Value 'Построить отчет логов оффлайн'
+New-ItemProperty -LiteralPath $key -Name MUIVerb -Value 'Построить отчет логов оффлайн' -PropertyType String -Force | Out-Null
 New-ItemProperty -LiteralPath $key -Name Icon -Value 'powershell.exe,0' -PropertyType String -Force | Out-Null
 New-ItemProperty -LiteralPath $key -Name MultiSelectModel -Value 'Single' -PropertyType String -Force | Out-Null
 Set-Item -LiteralPath "$key\command" -Value ('powershell.exe -NoProfile -ExecutionPolicy Bypass -File "' + $runner + '" -Archive "%1"')

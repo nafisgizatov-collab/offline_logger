@@ -28,9 +28,9 @@ python build_background_report.py 'C:\logs' --recursive --serve
 
 | Установщик | Пункт меню |
 | --- | --- |
-| `InstallSabyLogReportMenu.cmd` | Построй отчет по логам |
-| `InstallBackgroundProcessMenu.cmd` | Показать фоновые процессы |
-| `InstallZipLogReportMenu.cmd` | построить отчет логов оффлайн |
+| `InstallSabyLogReportMenu.cmd` | Построить отчет по логам |
+| `InstallBackgroundProcessMenu.cmd` | Построить отчет фоновых синхронизаций |
+| `InstallZipLogReportMenu.cmd` | Построить отчет логов оффлайн |
 
 Регистрация выполняется для текущего пользователя, права администратора не нужны.
 В Windows 11 пункты могут находиться в «Показать дополнительные параметры».
