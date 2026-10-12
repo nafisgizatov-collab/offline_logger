@@ -26,3 +26,4 @@ __pycache__/
 !/UpdateReportMenuNames.reg
 !/installSabyLogContextMenu.cmd
 !/installSabyLogContextMenu.ps1
+!/UI-console-keys
