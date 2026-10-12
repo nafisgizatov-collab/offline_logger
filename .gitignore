@@ -1,0 +1,25 @@
+# Keep only the analyzer and its installers in Git.
+/*
+!/.gitignore
+!/AGENTS.md
+!/.github/
+!/.gitattributes
+!/build_background_report.py
+!/build_background_report.cmd
+!/build_nine_methods_report.py
+!/build_zip_log_report.py
+!/SabyLogReport.cmd
+!/ReportBackrgoudProcees.cmd
+!/InstallBackgroundProcessMenu.cmd
+!/InstallBackgroundProcessMenu.ps1
+!/InstallSabyLogReportMenu.cmd
+!/InstallSabyLogReportMenu.ps1
+!/InstallZipLogReportMenu.cmd
+!/InstallZipLogReportMenu.ps1
+!/RunBackgroundProcessReport.ps1
+!/RunSabyLogReport.ps1
+!/RunZipLogReport.ps1
+__pycache__/
+*.log
+*.zip
+*.har
