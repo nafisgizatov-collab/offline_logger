@@ -24,3 +24,5 @@ __pycache__/
 *.zip
 *.har
 !/UpdateReportMenuNames.reg
+!/installSabyLogContextMenu.cmd
+!/installSabyLogContextMenu.ps1
