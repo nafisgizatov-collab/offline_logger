@@ -29,54 +29,6 @@ def main():
  progress('Поиск логов',str(folder));files=sorted(p for p in (folder.rglob('*.log') if a.recursive else folder.glob('*.log')) if re.search(r'(?:-|_)events(?:_\d+)?\.log$',p.name))
  progress('Найдены файлы',f'{len(files)} шт.; {sum(p.stat().st_size for p in files)/1048576:.1f} МБ')
  if not files:ap.error('Не найдены *events.log')
- nodes=[];edges={};async_traces=set();errors=[];log_start=None;log_end=None
- def add(process,trace,root,name,start,end,kind,file,line,thread='',visible=False):
-  if end<start:return
-  nodes.append(dict(process=process,trace=trace,root=root,name=method(name),start=start,end=end,duration=end-start,kind=kind,file=file,line=line,thread=thread,visible=visible,parent=None))
- for file_index,p in enumerate(files,1):
-  progress('Чтение',f'{file_index}/{len(files)} · {p.name} · {p.stat().st_size/1048576:.1f} МБ');file_size=p.stat().st_size;read_bytes=0;last_progress=time.monotonic()
-  process=re.sub(r'^\d{4}-\d{2}-\d{2}_','',p.name).removesuffix('-events.log');process=re.sub(r'(?:-|_)events(?:_\d+)?\.log$','',process);process='Launcher' if re.fullmatch(r'events(?:_\d+)?\.log',process) else process
-  dm=re.search(r'\d{4}-\d{2}-\d{2}',p.name);day=datetime.date.fromisoformat(dm[0]).toordinal()*86400000 if dm else 0;last=0;pending={}
-  for ln,l in enumerate(p.open(encoding='utf-8-sig',errors='replace'),1):
-   read_bytes+=len(l.encode('utf-8'))
-   if time.monotonic()-last_progress>=2:
-    progress('Чтение',f'{file_index}/{len(files)} · {p.name} · ~{min(100,read_bytes/max(1,file_size)*100):.0f}% · строк {ln:,} · операций {len(nodes):,}');last_progress=time.monotonic()
-   tm=re.match(r'(\d\d):(\d\d):(\d\d)\.(\d{3})',l)
-   if not tm:continue
-   h,m,s,ms=map(int,tm.groups());raw=((h*60+m)*60+s)*1000+ms
-   if last-raw>43200000:day+=86400000
-   last=raw;t=day+raw;log_start=t if log_start is None else min(log_start,t);log_end=t if log_end is None else max(log_end,t);c=l.rstrip().split('\t');msg=c[-1];thread=c[1] if len(c)>1 else ''
-   trace=c[4] if len(c)>5 else '';root=c[5] if len(c)>9 else trace;ctx=c[8] if len(c)>9 else c[5] if len(c)>5 else ''
-   child=re.search(r'\bruuid:([\w-]+)',msg)
-   if child and '[async call]' in msg:async_traces.add(child[1])
-   if child and ('[async call]' in msg or '[rpc call][start]' in msg):edges[child[1]]=(trace,t)
-   key=(thread,trace)
-   if '[w][start]' in msg:pending[key]=(t,ctx,ln)
-   d=re.search(r'\[exec_period\]\s+(\d+)',msg)
-   if not d:continue
-   dur=int(d[1]);start=t-dur;end=t;name='';kind=''
-   if '[w][finish]' in msg:
-    st=pending.pop(key,None);start=st[0] if st else start;name=ctx;kind='БЛ'
-   elif '[rpc call][finish]' in msg:
-    # A receiving local w interval represents this same call; reconcile below.
-    name=msg.split('[rpc call][finish]',1)[1].split(' ruuid:',1)[0].strip();kind='RPC';trace=child[1] if child else trace
-   elif '[m][finish]' in msg:name=msg.split('[m][finish]',1)[1].split('[exec_period]',1)[0].strip();kind='Метод'
-   elif '[event][hdl][finish]' in msg:name=msg.split('[event][hdl][finish]',1)[1].split('[exec_period]',1)[0].strip();kind='Обработчик'
-   elif '[sql][finish]' in msg:name='SQL · '+method(ctx);kind='SQL'
-   elif 'Waiting for the GIL' in msg or 'waiting for future' in msg:
-    name=msg.split('[exec_period]',1)[0].strip();kind='Длинная задача';start=t;end=t+dur
-   if name:add(process,trace,root,name,start,end,kind,str(p.relative_to(folder)),ln,thread)
-  for (thread,trace),(start,name,ln) in pending.items():
-   add(process,trace,trace,name,start,start,'Незавершённый вызов',str(p.relative_to(folder)),ln,thread)
- progress('Сопоставление вызовов',f'{len(nodes):,} операций')
- # Prefer actual receiving RPC over its caller-side representation.
- receivers={(n['trace'],n['name']) for n in nodes if n['kind']=='БЛ'}
- nodes=[n for n in nodes if not(n['kind']=='RPC' and (n['trace'],n['name']) in receivers)]
- # Invoke records establish request provenance; explicitly asynchronous requests stay background.
- invokefiles=sorted(p for p in (folder.rglob('*.log') if a.recursive else folder.glob('*.log')) if re.search(r'(?:-|_)invoke(?:_\d+)?\.log$',p.name))
- invoked=set();response_nodes={}
- for n in nodes:
-  if n['trace']:response_nodes.setdefault((n['trace'],n['name']),[]).append(n)
  def set_payload(n,text,source,field):
   valid=True
   try:
@@ -97,6 +49,83 @@ def main():
   if not valid:n[field+'_invalid']=True
   else:n.pop(field+'_invalid',None)
  def set_response(n,text,source):set_payload(n,text,source,'response')
+ nodes=[];edges={};async_traces=set();errors=[];log_start=None;log_end=None
+ def add(process,trace,root,name,start,end,kind,file,line,thread='',visible=False):
+  if end<start:return
+  nodes.append(dict(process=process,trace=trace,root=root,name=method(name),start=start,end=end,duration=end-start,kind=kind,file=file,line=line,thread=thread,visible=visible,parent=None))
+ for file_index,p in enumerate(files,1):
+  progress('Чтение',f'{file_index}/{len(files)} · {p.name} · {p.stat().st_size/1048576:.1f} МБ');file_size=p.stat().st_size;read_bytes=0;last_progress=time.monotonic()
+  process=re.sub(r'^\d{4}-\d{2}-\d{2}_','',p.name).removesuffix('-events.log');process=re.sub(r'(?:-|_)events(?:_\d+)?\.log$','',process);process='Launcher' if re.fullmatch(r'events(?:_\d+)?\.log',process) else process
+  dm=re.search(r'\d{4}-\d{2}-\d{2}',p.name);day=datetime.date.fromisoformat(dm[0]).toordinal()*86400000 if dm else 0;last=0;pending={};method_pending={}
+  def event_records(stream):
+   saved=None
+   for line_number,line in enumerate(stream,1):
+    if re.match(r'\d\d:\d\d:\d\d\.\d{3}',line):
+     if saved is not None:yield saved
+     saved=(line_number,line)
+    elif saved is not None and ('[m][start]' in saved[1] or '[m][finish]' in saved[1]):saved=(saved[0],saved[1]+line)
+   if saved is not None:yield saved
+  for ln,l in event_records(p.open(encoding='utf-8-sig',errors='replace')):
+   read_bytes+=len(l.encode('utf-8'))
+   if time.monotonic()-last_progress>=2:
+    progress('Чтение',f'{file_index}/{len(files)} · {p.name} · ~{min(100,read_bytes/max(1,file_size)*100):.0f}% · строк {ln:,} · операций {len(nodes):,}');last_progress=time.monotonic()
+   tm=re.match(r'(\d\d):(\d\d):(\d\d)\.(\d{3})',l)
+   if not tm:continue
+   h,m,s,ms=map(int,tm.groups());raw=((h*60+m)*60+s)*1000+ms
+   if last-raw>43200000:day+=86400000
+   last=raw;t=day+raw;log_start=t if log_start is None else min(log_start,t);log_end=t if log_end is None else max(log_end,t);c=l.rstrip().split('\t');msg=c[-1];thread=c[1] if len(c)>1 else ''
+   trace=c[4] if len(c)>5 else '';root=c[5] if len(c)>9 else trace;ctx=c[8] if len(c)>9 else c[5] if len(c)>5 else ''
+   child=re.search(r'\bruuid:([\w-]+)',msg)
+   if child and '[async call]' in msg:async_traces.add(child[1])
+   if child and ('[async call]' in msg or '[rpc call][start]' in msg):edges[child[1]]=(trace,t)
+   key=(thread,trace)
+   if '[w][start]' in msg:pending[key]=(t,ctx,ln)
+   method_start=re.search(r'\[m\]\[start\]\s+([^\s(]+)\((.*)\)\s*$',msg,re.S)
+   if method_start:
+    raw_params=method_start[2];values=[];decoder=json.JSONDecoder();remaining=raw_params.strip()
+    try:
+     while remaining:
+      value,offset=decoder.raw_decode(remaining);values.append(value);remaining=remaining[offset:].strip()
+      if remaining:
+       if not remaining.startswith(';'):raise ValueError('Argument separator')
+       remaining=remaining[1:].strip()
+     payload=json.dumps(values,ensure_ascii=False)
+    except ValueError:payload=raw_params
+    method_pending.setdefault((thread,trace,method_start[1]),[]).append((payload,ln))
+
+   d=re.search(r'\[exec_period\]\s+(\d+)',msg)
+   if not d:continue
+   dur=int(d[1]);start=t-dur;end=t;name='';kind=''
+   if '[w][finish]' in msg:
+    st=pending.pop(key,None);start=st[0] if st else start;name=ctx;kind='БЛ'
+   elif '[rpc call][finish]' in msg:
+    # A receiving local w interval represents this same call; reconcile below.
+    name=msg.split('[rpc call][finish]',1)[1].split(' ruuid:',1)[0].strip();kind='RPC';trace=child[1] if child else trace
+   elif '[m][finish]' in msg:name=msg.split('[m][finish]',1)[1].split('[exec_period]',1)[0].strip();kind='Метод'
+   elif '[event][hdl][finish]' in msg:name=msg.split('[event][hdl][finish]',1)[1].split('[exec_period]',1)[0].strip();kind='Обработчик'
+   elif '[sql][finish]' in msg:name='SQL · '+method(ctx);kind='SQL'
+   elif 'Waiting for the GIL' in msg or 'waiting for future' in msg:
+    name=msg.split('[exec_period]',1)[0].strip();kind='Длинная задача';start=t;end=t+dur
+   if name:add(process,trace,root,name,start,end,kind,str(p.relative_to(folder)),ln,thread)
+   if name and kind=='Метод':
+    stack=method_pending.get((thread,trace,name),[])
+    if stack:
+     payload,source_line=stack.pop();set_payload(nodes[-1],payload,str(p.relative_to(folder))+':'+str(source_line),'params')
+    tail=msg[d.end():].strip()
+    tail=re.sub(r'^(?:result|response|return|результат)\s*[:=]\s*','',tail,flags=re.I)
+    if tail.startswith(('{','[','"')) or tail in ('null','true','false') or re.fullmatch(r'-?\d+(?:\.\d+)?',tail):set_response(nodes[-1],tail,str(p.relative_to(folder))+':'+str(ln))
+
+  for (thread,trace),(start,name,ln) in pending.items():
+   add(process,trace,trace,name,start,start,'Незавершённый вызов',str(p.relative_to(folder)),ln,thread)
+ progress('Сопоставление вызовов',f'{len(nodes):,} операций')
+ # Prefer actual receiving RPC over its caller-side representation.
+ receivers={(n['trace'],n['name']) for n in nodes if n['kind']=='БЛ'}
+ nodes=[n for n in nodes if not(n['kind']=='RPC' and (n['trace'],n['name']) in receivers)]
+ # Invoke records establish request provenance; explicitly asynchronous requests stay background.
+ invokefiles=sorted(p for p in (folder.rglob('*.log') if a.recursive else folder.glob('*.log')) if re.search(r'(?:-|_)invoke(?:_\d+)?\.log$',p.name))
+ invoked=set();response_nodes={}
+ for n in nodes:
+  if n['trace']:response_nodes.setdefault((n['trace'],n['name']),[]).append(n)
  progress('Чтение invoke',f'{len(invokefiles)} файлов')
  for p in invokefiles:
   progress('Чтение invoke',p.name)
