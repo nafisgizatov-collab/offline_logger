@@ -12,7 +12,7 @@ try {
     } elseif (Get-Command python -ErrorAction SilentlyContinue) {
         & python -u $scriptPath $archivePath --serve
     } else { throw 'Install Python 3.9 or newer.' }
-    if ($LASTEXITCODE -ne 0) { throw 'ZIP report generation failed.' }
+    if ($LASTEXITCODE -ne 0) { throw 'Archive report generation failed.' }
 } catch {
     Write-Host $_ -ForegroundColor Red
     Read-Host 'Press Enter to close'
