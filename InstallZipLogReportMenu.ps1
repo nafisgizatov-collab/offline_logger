@@ -2,6 +2,7 @@
 $ErrorActionPreference = 'Stop'
 trap { Write-Host ($_ | Out-String) -ForegroundColor Red; exit 1 }
 $keys = @('.zip', '.7z') | ForEach-Object { 'HKCU:\Software\Classes\SystemFileAssociations\' + $_ + '\shell\SabyOfflineLogReport' }
+$keys += 'HKCU:\Software\Classes\7-Zip.7z\shell\SabyOfflineLogReport'
 if ($Uninstall) {
     foreach ($key in $keys) { if (Test-Path -LiteralPath $key) { Remove-Item -LiteralPath $key -Recurse -Force } }
     exit
@@ -18,6 +19,15 @@ New-ItemProperty -LiteralPath $key -Name Icon -Value 'powershell.exe,0' -Propert
 New-ItemProperty -LiteralPath $key -Name MultiSelectModel -Value 'Single' -PropertyType String -Force | Out-Null
 Set-Item -LiteralPath "$key\command" -Value ('powershell.exe -NoProfile -ExecutionPolicy Bypass -File "' + $runner + '" -Archive "%1"')
 }
+# Also emit a native import file for Explorer outside isolated registry views.
+$regLines = @('Windows Registry Editor Version 5.00', '')
+$command = 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "' + $runner + '" -Archive "%1"'
+$escapedCommand = $command.Replace('\', '\\').Replace('"', '\"')
+foreach ($key in $keys) {
+    $nativeKey = $key.Replace('HKCU:', 'HKEY_CURRENT_USER')
+    $regLines += @("[$nativeKey]", '@="Построить отчет логов оффлайн"', '"MUIVerb"="Построить отчет логов оффлайн"', '"Icon"="powershell.exe,0"', '"MultiSelectModel"="Single"', '', "[$nativeKey\command]", ('@="' + $escapedCommand + '"'), '')
+}
+$regLines | Set-Content -LiteralPath (Join-Path $PSScriptRoot 'InstallArchiveLogMenu.reg') -Encoding Unicode
 Add-Type -TypeDefinition @'
 using System;
 using System.Runtime.InteropServices;
