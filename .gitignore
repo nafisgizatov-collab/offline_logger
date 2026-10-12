@@ -28,3 +28,4 @@ __pycache__/
 !/installSabyLogContextMenu.ps1
 !/UI-console-keys
 !/UI-console-ignore
+!/test_console_multiline.py

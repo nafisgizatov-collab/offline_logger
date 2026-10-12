@@ -150,7 +150,7 @@ def main():
   relative=str(consolefile.relative_to(folder));dm=re.search(r'\d{4}-\d{2}-\d{2}',consolefile.name);day=datetime.date.fromisoformat(dm[0]).toordinal()*86400000 if dm else 0;previous=0;record=None
   def save_console(record):
    if record is None:return
-   t,line_number,text,is_error=record
+   t,line_number,text,is_error=(record[key] for key in ('time','line','text','is_error'))
    text=re.sub(r'\s*\((?:resources/|https?://|file:)[^\r\n]*?:\d+(?::\d+)?\)\s*$','',text.strip())
    if is_error:
     add('UI-console','console-error:'+relative+':'+str(line_number),'',text,t,t,'Ошибка UI',relative,line_number,visible=True)
@@ -168,7 +168,7 @@ def main():
    for ln,line in enumerate(stream,1):
     tm=re.match(r'(\d\d):(\d\d):(\d\d)\.(\d{3})',line)
     if not tm:
-     if record:record[-1]+=line
+     if record is not None:record['text']+=line
      continue
     save_console(record);record=None;h,m,sec,ms=map(int,tm.groups());raw=((h*60+m)*60+sec)*1000+ms
     if previous-raw>43200000:day+=86400000
@@ -180,7 +180,7 @@ def main():
      columns=line.rstrip().split('\t')
      if len(columns)<8:continue
      text='\t'.join(columns[7:])
-    record=[day+raw,ln,text,bool(re.search(r'\[ERROR\]',line,re.I))]
+    record=dict(time=day+raw,line=ln,text=text,is_error=bool(re.search(r'\[ERROR\]',line,re.I)))
    save_console(record)
  # Error logs are small and read once; preserve multiline exception messages.
  error_records=ui_error_records;error_index={}
