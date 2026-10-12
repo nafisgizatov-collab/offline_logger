@@ -193,22 +193,42 @@ def main():
     record=dict(time=day+raw,line=ln,text=text,is_error=bool(re.search(r'\[ERROR\]',line,re.I)))
    save_console(record)
  # Error logs are small and read once; preserve multiline exception messages.
- error_records=ui_error_records;error_index={}
+ error_records=ui_error_records;error_index={};error_threads={}
  for node in nodes:
-  if node['trace']:error_index.setdefault(node['trace'],[]).append(node)
+  scope=(node['process'],str(Path(node['file']).parent))
+  if node['trace']:error_index.setdefault((scope,node['trace']),[]).append(node)
+  for name in set(('',node['name'])):error_threads.setdefault((scope,node['thread'],name),[]).append(node)
+ # Max-end interval trees avoid scanning every operation for each untraced error.
+ for key,items in error_threads.items():
+  items.sort(key=lambda node:node['start']);size=1
+  while size<len(items):size*=2
+  ends=[float('-inf')]*(2*size)
+  for i,node in enumerate(items):ends[size+i]=node['end']
+  for i in range(size-1,0,-1):ends[i]=max(ends[i*2],ends[i*2+1])
+  error_threads[key]=(items,size,ends)
+ def error_candidates(index,t):
+  if index is None:return []
+  items,size,ends=index;found=[];todo=[(1,0,size)]
+  while todo:
+   pos,lo,hi=todo.pop()
+   if lo>=len(items) or ends[pos]<t or items[lo]['start']>t:continue
+   if hi-lo==1:found.append(items[lo]);continue
+   mid=(lo+hi)//2;todo.extend(((pos*2,lo,mid),(pos*2+1,mid,hi)))
+  return found
  errorfiles=sorted(p for p in (folder.rglob('*.log') if a.recursive else folder.glob('*.log')) if re.search(r'(?:-|_)errors(?:_\d+)?\.log$',p.name,re.I))
  progress('Чтение errors',str(len(errorfiles))+' файлов')
  for errorfile in errorfiles:
+  progress('Чтение errors',errorfile.name)
   relative=str(errorfile.relative_to(folder));prefix=re.sub(r'(?:-|_)errors(?:_\d+)?\.log$','',errorfile.name,flags=re.I)
   process=re.sub(r'^\d{4}-\d{2}-\d{2}_?','',prefix) or 'Launcher'
   dm=re.search(r'\d{4}-\d{2}-\d{2}',errorfile.name);day=datetime.date.fromisoformat(dm[0]).toordinal()*86400000 if dm else 0
-  previous=0;current=None
+  previous=0;current=None;error_scope=(process,str(Path(relative).parent))
   def save_error(record):
    if record is None:return
    t,trace,ctx,thread,line_number,message=record
-   candidates=[node for node in error_index.get(trace,[]) if trace and node['process']==process and Path(node['file']).parent==Path(relative).parent and (not ctx or node['name']==method(ctx)) and node['start']-100<=t<=node['end']+100]
-   if not candidates and not trace:
-    candidates=[node for node in nodes if node['process']==process and node['thread']==thread and Path(node['file']).parent==Path(relative).parent and node['start']<=t<=node['end'] and (not ctx or node['name']==method(ctx))]
+   context=method(ctx) if ctx else ''
+   candidates=[node for node in error_index.get((error_scope,trace),[]) if (not context or node['name']==context) and node['start']-100<=t<=node['end']+100]
+   if not candidates and not trace:candidates=error_candidates(error_threads.get((error_scope,thread,context)),t)
    target=min(candidates,key=lambda node:node['duration']) if candidates else None
    detail=dict(time=t,file=relative,line=line_number,message=message.strip())
    if target is None:
