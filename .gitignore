@@ -27,3 +27,4 @@ __pycache__/
 !/installSabyLogContextMenu.cmd
 !/installSabyLogContextMenu.ps1
 !/UI-console-keys
+!/UI-console-ignore
