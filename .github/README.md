@@ -6,21 +6,23 @@ Python 3.9 или новее; сторонние Python-библиотеки н�
 
 ## Запуск
 
-Положите `SabyLogReport.cmd` в папку с логами и запустите двойным кликом.
+Распакуйте репозиторий в постоянную папку и запустите единственный установщик в корне: **`installSabyLogContextMenu.cmd`**. Все остальные файлы находятся в `resources/`.
+
+Для ручного запуска используйте `resources/SabyLogReport.cmd`. Его также можно скопировать в папку с логами.
 Либо передайте папку аргументом:
 
 ```powershell
-.\SabyLogReport.cmd 'C:\logs\20261012'
+.\resources\SabyLogReport.cmd 'C:\logs\20261012'
 ```
 
 Запуск исходника:
 
 ```powershell
-python build_background_report.py 'C:\logs' --recursive --serve
+python resources/build_background_report.py 'C:\logs' --recursive --serve
 ```
 
 Для отдельного отчёта по девяти методам фоновой синхронизации используйте
-`ReportBackrgoudProcees.cmd` или `build_nine_methods_report.py`.
+`resources/ReportBackrgoudProcees.cmd` или `resources/build_nine_methods_report.py`.
 
 ## Контекстное меню Проводника
 
@@ -30,14 +32,14 @@ python build_background_report.py 'C:\logs' --recursive --serve
 | Где | Пункт меню |
 | --- | --- |
 | Папка или свободное место внутри папки | Построить отчет по логам |
-| ZIP-архив | Построить отчет логов оффлайн |
+| ZIP- или 7z-архив | Построить отчет логов оффлайн |
 
 Регистрация выполняется для текущего пользователя, права администратора не нужны.
 В Windows 11 пункты могут находиться в «Показать дополнительные параметры».
 После установки переоткройте окно папки. Вывод сохраняется в
-`installSabyLogContextMenu.log` рядом с установщиком.
+`resources/installSabyLogContextMenu.log`.
 Сохраняйте проект в постоянной папке: пункты меню ссылаются на её файлы.
-Скачивайте весь репозиторий: CMD использует соседние PS1 и исходники анализатора.
+Скачивайте весь репозиторий: установщик использует файлы из `resources/`.
 Для удаления обоих пунктов:
 
 ```powershell
@@ -131,3 +133,19 @@ UI-console и переключатель обычных событий конс�
 
 
 Архивы `.7z` поддерживаются тем же пунктом «Построить отчет логов оффлайн», что и `.zip`. Повторно запустите `installSabyLogContextMenu.cmd`, чтобы обновить меню. Для `.7z` необходим установленный 7-Zip (7z.exe в PATH или стандартной папке Program Files/7-Zip). Выбирается самая свежая папка логов; извлекаются только необходимые LOG/HAR файлы.
+
+
+## Структура поставки
+
+```text
+installSabyLogContextMenu.cmd
+resources/
+    build_background_report.py
+    SabyLogReport.cmd
+    build_zip_log_report.py
+    UI-console-keys
+    UI-console-ignore
+    ...
+```
+
+Установка добавляет только общие отчеты по папке и архивам. Временный отчет по девяти методам находится в resources и устанавливается отдельно. Повторный запуск установщика обновляет пути в контекстном меню. Для прямого импорта создается `resources/InstallSabyLogContextMenu.reg`; если пункт не появился, откройте этот файл двойным щелчком в Проводнике.

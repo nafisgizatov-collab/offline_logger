@@ -3,6 +3,7 @@ echo Background Processes Report - starting...
 echo Progress updates every 5 seconds. Ctrl+C to cancel.
 set "SABY_REPORT_SELF=%~f0"
 set "SABY_REPORT_FOLDER=%~dp0"
+if not "%~1"=="" set "SABY_REPORT_FOLDER=%~f1"
 powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; [Console]::OutputEncoding=[Text.Encoding]::UTF8; $env:PYTHONIOENCODING='utf-8'; Write-Host 'Preparing Python...'; $logFolder=Join-Path $env:SABY_REPORT_FOLDER '.'; $source=[IO.File]::ReadAllText($env:SABY_REPORT_SELF,[Text.Encoding]::UTF8); $marker='#'+'__PYTHON_PAYLOAD__'; $payload=$source.Substring($source.IndexOf($marker)+$marker.Length).TrimStart([char]13,[char]10); $tempScript=Join-Path ([IO.Path]::GetTempPath()) ('saby-report-'+[guid]::NewGuid().ToString()+'.py'); try { [IO.File]::WriteAllText($tempScript,$payload,(New-Object Text.UTF8Encoding($false))); if (Get-Command py -ErrorAction SilentlyContinue) { & py -3 -u $tempScript $logFolder --serve } elseif (Get-Command python -ErrorAction SilentlyContinue) { & python -u $tempScript $logFolder --serve } else { throw 'Install Python 3.9 or newer.' }; if ($LASTEXITCODE -ne 0) { throw 'Report generation failed.' } } catch { Write-Host $_ -ForegroundColor Red; exit 1 } finally { Remove-Item -LiteralPath $tempScript -ErrorAction SilentlyContinue }"
 if errorlevel 1 pause
 exit /b

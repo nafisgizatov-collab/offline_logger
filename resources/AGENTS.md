@@ -14,3 +14,5 @@ build_background_report.py. The payload in ReportBackrgoudProcees.cmd must match
 build_nine_methods_report.py. Preserve launcher headers when synchronizing payloads.
 Use UTF-8 with BOM for PowerShell scripts containing Russian text so Windows
 PowerShell 5.1 reads them correctly; CMD launchers use CRLF.
+
+Project layout: the only root launcher is installSabyLogContextMenu.cmd. All analyzer code, sidecar files, tests and supporting installers live under resources/. Maintain hybrid payloads there. Do not add compatibility wrappers from the parent workspace to Git. resources/local is local-only scratch space.

@@ -1,4 +1,4 @@
-param([Parameter(Mandatory=$true)][string]$Folder)
+﻿param([Parameter(Mandatory=$true)][string]$Folder)
 $ErrorActionPreference = 'Stop'
 try {
     $folderPath = (Resolve-Path -LiteralPath $Folder).Path
