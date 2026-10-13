@@ -27,6 +27,7 @@
 !/resources/installSabyLogContextMenu.cmd
 !/resources/installSabyLogContextMenu.ps1
 !/resources/test_console_multiline.py
+!/resources/test_recent_mainservice.py
 __pycache__/
 *.log
 *.zip

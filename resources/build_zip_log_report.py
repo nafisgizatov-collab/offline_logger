@@ -11,6 +11,7 @@ import sys
 import tempfile
 import zipfile
 from pathlib import Path, PurePosixPath
+from build_background_report import select_recent_mainservice
 
 
 def select_logs(archive):
@@ -127,7 +128,13 @@ def main():
     archive_type = SevenZipArchive if archive_path.suffix.lower() == '.7z' else zipfile.ZipFile
     with archive_type(archive_path) as archive:
         (date, prefix), entries = select_logs(archive)
+        paths = [PurePosixPath(info.filename.replace('\\', '/')) for info, _ in entries]
+        _, _, omitted = select_recent_mainservice(paths)
+        entries = [(info, parts) for info, parts in entries
+                   if PurePosixPath(info.filename.replace('\\', '/')) not in omitted]
         print('Log folder: ' + prefix, flush=True)
+        if omitted:
+            print(f'MainService-events: keeping latest 3; omitted {len(omitted)} before extraction', flush=True)
         print(f'Files: {len(entries)}; unpacked size: {sum(info.file_size for info, _ in entries) / 1048576:.1f} MB', flush=True)
         with tempfile.TemporaryDirectory(prefix='saby-zip-') as temp:
             root = Path(temp).resolve()
@@ -140,6 +147,8 @@ def main():
                 with archive.open(info) as source, target.open('wb') as dest:
                     shutil.copyfileobj(source, dest)
             command = [sys.executable, '-u', str(Path(__file__).with_name('build_background_report.py')), str(root), '--recursive', '--output', str(output)]
+            if omitted:
+                command += ['--omitted-mainservice-files', str(len(omitted))]
             if args.serve:
                 command.append('--serve')
             subprocess.run(command, check=True)
