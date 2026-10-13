@@ -22,7 +22,7 @@ try {
     $unpacked = Join-Path $stage 'package'
     Expand-Archive -LiteralPath $archive -DestinationPath $unpacked
     $source = Join-Path $unpacked 'offline_logger-main'
-    foreach ($name in @('installSabyLogContextMenu.cmd', 'resources\installSabyLogContextMenu.ps1', 'resources\build_background_report.py', 'resources\SabyLogReport.cmd', 'resources\build_zip_log_report.py')) {
+    foreach ($name in @('installSabyLogContextMenu-Windows.cmd', 'resources\installSabyLogContextMenu.ps1', 'resources\build_background_report.py', 'resources\SabyLogReport.cmd', 'resources\build_zip_log_report.py')) {
         if (!(Test-Path -LiteralPath (Join-Path $source $name) -PathType Leaf)) { throw "Incomplete download: $name" }
     }
     $resources = Join-Path $Destination 'resources'
@@ -35,7 +35,7 @@ try {
         }
         Copy-Item -LiteralPath $file.FullName -Destination $target -Force
     }
-    Copy-Item -LiteralPath (Join-Path $source 'installSabyLogContextMenu.cmd') -Destination (Join-Path $Destination 'installSabyLogContextMenu.cmd') -Force
+    Copy-Item -LiteralPath (Join-Path $source 'installSabyLogContextMenu-Windows.cmd') -Destination (Join-Path $Destination 'installSabyLogContextMenu-Windows.cmd') -Force
     if (!$SkipMenu) {
         & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $resources 'installSabyLogContextMenu.ps1')
         if ($LASTEXITCODE -ne 0) { throw 'Context menu installation failed.' }

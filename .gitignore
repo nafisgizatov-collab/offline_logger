@@ -2,8 +2,8 @@
 !/.gitignore
 !/.gitattributes
 !/.github/
-!/installSabyLogContextMenu.cmd
-!/installSabyLogContextMenu.command
+!/installSabyLogContextMenu-Windows.cmd
+!/installSabyLogContextMenu-macOS.command
 !/resources/
 /resources/*
 !/resources/AGENTS.md

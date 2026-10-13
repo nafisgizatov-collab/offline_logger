@@ -47,7 +47,7 @@ def workflow_documents(python, runner):
 
 def install(source, home, python):
     source = source.resolve()
-    installer = source / 'installSabyLogContextMenu.command'
+    installer = source / 'installSabyLogContextMenu-macOS.command'
     required = [installer] + [source / 'resources' / name for name in FILES]
     for path in required:
         if not path.is_file():

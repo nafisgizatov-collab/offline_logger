@@ -39,7 +39,7 @@ class MacInstallerTest(unittest.TestCase):
             self.assertEqual(filters.read_text(encoding='utf-8'), 'my custom filter')
             update = (destination / 'Обновить анализатор.command').read_text(encoding='utf-8')
             self.assertEqual(shlex.split(update.splitlines()[1]),
-                             ['exec', str(destination / 'installSabyLogContextMenu.command'), '--update'])
+                             ['exec', str(destination / 'installSabyLogContextMenu-macOS.command'), '--update'])
 
     def test_terminal_job_quotes_file_names_without_evaluating_them(self):
         with tempfile.TemporaryDirectory() as temp:
