@@ -1,6 +1,11 @@
 ﻿param([switch]$Uninstall)
 $ErrorActionPreference = 'Stop'
 try {
+    if (!$Uninstall) {
+        . (Join-Path $PSScriptRoot 'PythonRuntime.ps1')
+        $python = Resolve-SabyPython
+        Write-Host ('Python проверен: ' + $python)
+    }
     $installers = @('InstallSabyLogReportMenu.ps1', 'InstallZipLogReportMenu.ps1')
     foreach ($installer in $installers) {
         $path = Join-Path $PSScriptRoot $installer

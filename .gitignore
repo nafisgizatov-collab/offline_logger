@@ -33,3 +33,5 @@ __pycache__/
 *.7z
 *.har
 !/resources/UpdateSabyLogger.cmd
+!/resources/PythonRuntime.ps1
+!/resources/RunPythonReport.ps1
