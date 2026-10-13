@@ -15,4 +15,4 @@ build_nine_methods_report.py. Preserve launcher headers when synchronizing paylo
 Use UTF-8 with BOM for PowerShell scripts containing Russian text so Windows
 PowerShell 5.1 reads them correctly; CMD launchers use CRLF.
 
-Project layout: the only root launcher is installSabyLogContextMenu.cmd. All analyzer code, sidecar files, tests and supporting installers live under resources/. Maintain hybrid payloads there. Do not add compatibility wrappers from the parent workspace to Git. resources/local is local-only scratch space.
+Project layout: root launchers are installSabyLogContextMenu.cmd (Windows) and installSabyLogContextMenu.command (macOS). All analyzer code, sidecar files, tests and supporting installers live under resources/. Maintain hybrid payloads there. Do not add compatibility wrappers from the parent workspace to Git. resources/local is local-only scratch space. macOS .command files use LF and executable mode.

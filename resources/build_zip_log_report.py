@@ -119,10 +119,11 @@ class SevenZipArchive:
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('archive', type=Path)
+    parser.add_argument('--output', type=Path)
     parser.add_argument('--serve', action='store_true')
     args = parser.parse_args()
     archive_path = args.archive.resolve()
-    output = archive_path.with_name(archive_path.stem + ' — SabyLogReport.html')
+    output = args.output.resolve() if args.output else archive_path.with_name(archive_path.stem + ' — SabyLogReport.html')
     if archive_path.suffix.lower() not in ('.zip', '.7z'):
         raise ValueError('Supported archives: .zip and .7z')
     archive_type = SevenZipArchive if archive_path.suffix.lower() == '.7z' else zipfile.ZipFile

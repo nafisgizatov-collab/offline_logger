@@ -3,6 +3,7 @@
 !/.gitattributes
 !/.github/
 !/installSabyLogContextMenu.cmd
+!/installSabyLogContextMenu.command
 !/resources/
 /resources/*
 !/resources/AGENTS.md
@@ -28,6 +29,9 @@
 !/resources/installSabyLogContextMenu.ps1
 !/resources/test_console_multiline.py
 !/resources/test_recent_mainservice.py
+!/resources/install_macos.py
+!/resources/run_macos.py
+!/resources/test_macos_installer.py
 __pycache__/
 *.log
 *.zip
