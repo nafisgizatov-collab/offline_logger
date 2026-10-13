@@ -32,3 +32,4 @@ __pycache__/
 *.zip
 *.7z
 *.har
+!/resources/UpdateSabyLogger.cmd
