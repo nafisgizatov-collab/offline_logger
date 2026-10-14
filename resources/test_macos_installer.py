@@ -2,6 +2,7 @@
 from pathlib import Path
 import plistlib
 import shlex
+import shutil
 import sys
 import tempfile
 import unittest
@@ -40,6 +41,25 @@ class MacInstallerTest(unittest.TestCase):
             update = (destination / 'Обновить анализатор.command').read_text(encoding='utf-8')
             self.assertEqual(shlex.split(update.splitlines()[1]),
                              ['exec', str(destination / 'installSabyLogContextMenu-macOS.command'), '--update'])
+
+    def test_corrupt_python_payload_does_not_replace_installed_files(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            source = root / 'package'
+            (source / 'resources').mkdir(parents=True)
+            original = Path(__file__).resolve().parent.parent
+            installer = 'installSabyLogContextMenu-macOS.command'
+            shutil.copy2(original / installer, source / installer)
+            for name in FILES:
+                shutil.copy2(original / 'resources' / name, source / 'resources' / name)
+            home = root / 'home'
+            destination, _ = install(source, home, Path(sys.executable))
+            target = destination / 'resources/build_background_report.py'
+            before = target.read_bytes()
+            (source / 'resources/build_background_report.py').write_bytes(b'# broken\ntext = "\xd0"\n')
+            with self.assertRaisesRegex(RuntimeError, '--update'):
+                install(source, home, Path(sys.executable))
+            self.assertEqual(target.read_bytes(), before)
 
     def test_terminal_job_quotes_file_names_without_evaluating_them(self):
         with tempfile.TemporaryDirectory() as temp:

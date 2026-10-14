@@ -52,6 +52,18 @@ def install(source, home, python):
     for path in required:
         if not path.is_file():
             raise FileNotFoundError('В пакете отсутствует файл: ' + str(path))
+    # Validate all payloads before replacing any installed files.
+    for name in FILES:
+        if name.endswith('.py'):
+            payload = source / 'resources' / name
+            try:
+                text = payload.read_bytes().decode('utf-8-sig')
+                compile(text, str(payload), 'exec')
+            except (UnicodeError, SyntaxError) as error:
+                raise RuntimeError(
+                    'Поврежден Python-файл пакета: ' + str(payload) +
+                    '. Скачайте пакет заново или запустите установщик с --update.'
+                ) from error
     destination = home / 'Library/Application Support/SabyOfflineLogger'
     resources = destination / 'resources'
     resources.mkdir(parents=True, exist_ok=True)
