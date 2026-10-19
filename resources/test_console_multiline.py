@@ -35,6 +35,32 @@ class ConsoleMultilineTest(unittest.TestCase):
             self.assertTrue(any('stack trace' in row['name'] for row in errors))
             self.assertTrue(any('final continuation' in row['name'] for row in errors))
 
+    def test_full_pass_boundaries_survive_custom_filters_and_midnight(self):
+        analyzer = Path(__file__).with_name('build_background_report.py')
+        with tempfile.TemporaryDirectory() as temp:
+            folder = Path(temp)
+            (folder / '2024-04-19_MainService-events.log').write_text('', encoding='utf-8')
+            (folder / 'UI-console-keys').write_text('unrelated key', encoding='utf-8')
+            (folder / 'UI-console-ignore').write_text('полного прохода', encoding='utf-8')
+            (folder / '2024-04-19_UI-console.log').write_text(
+                '23:59:59.900 [INFO] Начало полного прохода [RetailCycle test-a]\n'
+                '00:00:00.250 [INFO] Конец полного прохода [RetailCycle test-a]\n'
+                '00:00:01.000 [INFO] Начало полного прохода [RetailCycle interrupted]\n'
+                '00:00:02.000 [INFO] unrelated noise\n', encoding='utf-8')
+            output = folder / 'report.html'
+            result = subprocess.run([sys.executable, '-X', 'utf8', str(analyzer), str(folder), '--output', str(output)],
+                                    capture_output=True, encoding='utf-8')
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            html = output.read_text(encoding='utf-8')
+            rows = json.loads(html.split('const rows=', 1)[1].split(',meta=', 1)[0])
+            meta = json.JSONDecoder().raw_decode(html.split(',meta=', 1)[1])[0]
+            markers = meta['console_markers']
+            self.assertEqual([m['type'] for m in markers], ['full-pass-start', 'full-pass-end', 'full-pass-start'])
+            self.assertEqual([m['label'] for m in markers], ['Начало', 'Конец', 'Начало'])
+            self.assertEqual(markers[1]['time'] - markers[0]['time'], 350)
+            self.assertEqual(len(rows), 3)
+            self.assertTrue(all(rows[m['node']]['kind'] == 'Консоль UI' for m in markers))
+
 
 if __name__ == '__main__':
     unittest.main()
