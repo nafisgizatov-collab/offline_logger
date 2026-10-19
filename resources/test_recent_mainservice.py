@@ -16,6 +16,27 @@ def record(time, message, trace='trace', context='Test.Method/1'):
 
 
 class RecentMainServiceTest(unittest.TestCase):
+    def test_sql_time_literal_does_not_extend_timeline(self):
+        analyzer=Path(__file__).with_name('build_background_report.py')
+        with tempfile.TemporaryDirectory() as temp:
+            folder=Path(temp)
+            log=folder/'2026-10-19_MainService-events.log'
+            log.write_text(record('14:00:25.844','[w][start]')+
+                           record('14:00:25.845','[sql][start]')+
+                           'args:\n12:00:23.265::time without time zone;\n'+
+                           record('14:00:26.000','[w][finish] [exec_period] 156')+
+                           '01:00:00.000::time without time zone;\n',encoding='utf-8')
+            start,end=log_file_bounds(log)
+            self.assertEqual(end-start,156)
+            output=folder/'report.html'
+            result=subprocess.run([sys.executable,'-X','utf8',str(analyzer),str(folder),'--output',str(output)],capture_output=True,encoding='utf-8')
+            self.assertEqual(result.returncode,0,result.stdout+result.stderr)
+            html=output.read_text(encoding='utf-8')
+            meta=json.JSONDecoder().raw_decode(html.split(',meta=',1)[1])[0]
+            self.assertTrue(meta['logStart'].endswith('14:00:25.844'),meta['logStart'])
+            self.assertTrue(meta['logEnd'].endswith('14:00:26.000'),meta['logEnd'])
+            self.assertEqual(meta['span'],156)
+
     def test_natural_rotation_order_not_mtime(self):
         paths=[PurePosixPath(f'2026-10-09_MainService-events_{i}.log') for i in range(1,21)]
         paths.reverse()

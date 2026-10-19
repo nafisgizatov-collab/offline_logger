@@ -59,7 +59,7 @@ def select_recent_mainservice(files):
 
 def log_file_bounds(path):
  # Read boundary records without loading a large file or its JSON payloads.
- pattern=re.compile(rb'^(\d\d):(\d\d):(\d\d)\.(\d{3})',re.M)
+ pattern=re.compile(rb'^(\d\d):(\d\d):(\d\d)\.(\d{3})(?=[ \t])',re.M)
  date=re.search(r'\d{4}-\d{2}-\d{2}',path.name)
  day=datetime.date.fromisoformat(date[0]).toordinal()*86400000 if date else 0
  with path.open('rb') as stream:
@@ -131,7 +131,7 @@ def main():
   def event_records(stream):
    saved=None
    for line_number,line in enumerate(stream,1):
-    if re.match(r'\d\d:\d\d:\d\d\.\d{3}',line):
+    if re.match(r'\d\d:\d\d:\d\d\.\d{3}(?=[ \t])',line):
      if saved is not None:yield saved
      saved=(line_number,line)
     elif saved is not None and ('[m][start]' in saved[1] or '[m][finish]' in saved[1]):saved=(saved[0],saved[1]+line)
@@ -140,7 +140,7 @@ def main():
    read_bytes+=len(l.encode('utf-8'))
    if time.monotonic()-last_progress>=2:
     progress('Чтение',f'{file_index}/{len(files)} · {p.name} · ~{min(100,read_bytes/max(1,file_size)*100):.0f}% · строк {ln:,} · операций {len(nodes):,}');last_progress=time.monotonic()
-   tm=re.match(r'(\d\d):(\d\d):(\d\d)\.(\d{3})',l)
+   tm=re.match(r'(\d\d):(\d\d):(\d\d)\.(\d{3})(?=[ \t])',l)
    if not tm:continue
    h,m,s,ms=map(int,tm.groups());raw=((h*60+m)*60+s)*1000+ms
    if last-raw>43200000:day+=86400000
@@ -290,7 +290,7 @@ def main():
    if 'инициализация оффлайн приложения' in text.casefold():nodes[-1]['console_marker']=dict(label='Инициализация оффлайн приложения',type='initialization')
   with consolefile.open(encoding='utf-8-sig',errors='replace') as stream:
    for ln,line in enumerate(stream,1):
-    tm=re.match(r'(\d\d):(\d\d):(\d\d)\.(\d{3})',line)
+    tm=re.match(r'(\d\d):(\d\d):(\d\d)\.(\d{3})(?=[ \t])',line)
     if not tm:
      if record is not None:record['text']+=line
      continue
@@ -354,7 +354,7 @@ def main():
    error_records.append(dict(time=t,file=relative,line=line_number,message=message.strip(),target=target))
   with errorfile.open(encoding='utf-8-sig',errors='replace') as stream:
    for ln,line in enumerate(stream,1):
-    tm=re.match(r'(\d\d):(\d\d):(\d\d)\.(\d{3})',line)
+    tm=re.match(r'(\d\d):(\d\d):(\d\d)\.(\d{3})(?=[ \t])',line)
     if not tm:
      if current:current[-1]+=line
      continue
