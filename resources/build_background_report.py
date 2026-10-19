@@ -118,9 +118,9 @@ def main():
   else:n.pop(field+'_invalid',None)
  def set_response(n,text,source):set_payload(n,text,source,'response')
  nodes=[];edges={};async_traces=set();errors=[];log_start=None;log_end=None
- def add(process,trace,root,name,start,end,kind,file,line,thread='',visible=False):
+ def add(process,trace,root,name,start,end,kind,file,line,thread='',visible=False,preserve_window=False):
   duration=end-start;original_interval=(start,end)
-  if window:start=max(start,window[0]);end=min(end,window[1])
+  if window and not preserve_window:start=max(start,window[0]);end=min(end,window[1])
   if end<start:return
   nodes.append(dict(process=process,trace=trace,root=root,name=method(name),start=start,end=end,duration=duration,kind=kind,file=file,line=line,thread=thread,visible=visible,parent=None))
   if original_interval!=(start,end):nodes[-1]['window_clipped']=True
@@ -265,26 +265,34 @@ def main():
  ignore_file=next((path for path in ignore_candidates if path.is_file()),None)
  console_ignore=[line.strip().casefold() for line in (ignore_file.read_text(encoding='utf-8-sig').splitlines() if ignore_file else ['подписка','Подписались']) if line.strip() and not line.lstrip().startswith('#')]
  progress('Чтение UI-console',str(len(consolefiles))+' файлов')
+ console_pass_starts=set()
  for consolefile in consolefiles:
   relative=str(consolefile.relative_to(folder));dm=re.search(r'\d{4}-\d{2}-\d{2}',consolefile.name);day=datetime.date.fromisoformat(dm[0]).toordinal()*86400000 if dm else 0;previous=0;record=None
   def save_console(record):
    if record is None:return
    t,line_number,text,is_error=(record[key] for key in ('time','line','text','is_error'))
-   if window and not window[0]<=t<=window[1]:return
    text=re.sub(r'\s*\((?:resources/|https?://|file:)[^\r\n]*?:\d+(?::\d+)?\)\s*$','',text.strip())
+   full_pass=re.match(r'^(Начало|Конец) полного прохода(?:\s|$)',text,re.I)
+   pass_id=re.search(r'\[RetailCycle\s+([^]\s]+)\]',text)
+   outside=window and not window[0]<=t<=window[1]
+   paired_end=full_pass and full_pass[1].casefold()=='конец' and pass_id and pass_id[1] in console_pass_starts
+   if outside and not paired_end:return
+   if full_pass and full_pass[1].casefold()=='начало' and pass_id:console_pass_starts.add(pass_id[1])
    if is_error:
     add('UI-console','console-error:'+relative+':'+str(line_number),'',text,t,t,'Ошибка UI',relative,line_number,visible=True)
     target=nodes[-1];target['name']=text;target['has_error']=True;target['call_errors']=[dict(time=t,file=relative,line=line_number,message=text)]
     ui_error_records.append(dict(time=t,file=relative,line=line_number,message=text,target=target,label='UI-error'))
     return
-   full_pass=re.match(r'^(Начало|Конец) полного прохода(?:\s|$)',text,re.I)
    if not full_pass and any(key in text.casefold() for key in console_ignore):return
    if not full_pass and not any(key in text.casefold() for key in console_keys):return
-   add('UI-console','console:'+relative+':'+str(line_number),'',text,t,t,'Консоль UI',relative,line_number,visible=True)
+   add('UI-console','console:'+relative+':'+str(line_number),'',text,t,t,'Консоль UI',relative,line_number,visible=True,preserve_window=bool(full_pass))
    nodes[-1]['name']=text
    if full_pass:
     start=full_pass[1].casefold()=='начало'
-    nodes[-1]['console_marker']=dict(label='Начало' if start else 'Конец',type='full-pass-start' if start else 'full-pass-end')
+    duration=re.search(r'\+\s*(\d+(?:[.,]\d+)?)\s*с\b',text) if not start else None
+    label='Начало' if start else 'Конец'+(' · '+duration[1].replace('.',',')+' с' if duration else '')
+    nodes[-1]['console_marker']=dict(label=label,type='full-pass-start' if start else 'full-pass-end')
+    if duration:nodes[-1]['console_marker']['elapsed_seconds']=float(duration[1].replace(',','.'))
    section=re.search(r'id\s+раздела:\s*([^\s,;]+)',text,re.I)
    if section:nodes[-1]['console_marker']=dict(label=section[1],type='section')
    if 'инициализация оффлайн приложения' in text.casefold():nodes[-1]['console_marker']=dict(label='Инициализация оффлайн приложения',type='initialization')
@@ -297,8 +305,8 @@ def main():
     save_console(record);record=None;h,m,sec,ms=map(int,tm.groups());raw=((h*60+m)*60+sec)*1000+ms
     if previous-raw>43200000:day+=86400000
     previous=raw
-    if window and not window[0]<=day+raw<=window[1]:continue
-    log_start=day+raw if log_start is None else min(log_start,day+raw);log_end=day+raw if log_end is None else max(log_end,day+raw)
+    if not window or window[0]<=day+raw<=window[1]:
+     log_start=day+raw if log_start is None else min(log_start,day+raw);log_end=day+raw if log_end is None else max(log_end,day+raw)
     # Both tab-separated and whitespace-aligned browser console records occur.
     payload=re.split(r'\[(?:INFO|WARNING|WARN|ERROR|DEBUG|LOG|TRACE)\]\s*',line,maxsplit=1,flags=re.I)
     if len(payload)==2:text=payload[1]
@@ -391,7 +399,7 @@ def main():
   while parent is not None and not nodes[parent].get('cloud_evidence'):
    nodes[parent]['has_cloud_call']=True;nodes[parent]['cloud_evidence']=evidence;parent=nodes[parent]['parent']
  base=min([n['start'] for n in nodes]+([log_start] if log_start is not None else [0]));end=max([n['end'] for n in nodes]+([log_end] if log_end is not None else [base+1]))
- if window:base,end=window
+ if window:base,end=window[0],max(window[1],end)
  for n in nodes:
   n['log_time']=f"{int(n['start']//3600000)%24:02}:{int(n['start']//60000)%60:02}:{int(n['start']//1000)%60:02}.{int(n['start'])%1000:03}"
   n['start']-=base;n['end']-=base

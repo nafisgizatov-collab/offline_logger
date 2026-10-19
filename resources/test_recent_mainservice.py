@@ -37,6 +37,29 @@ class RecentMainServiceTest(unittest.TestCase):
             self.assertTrue(meta['logEnd'].endswith('14:00:26.000'),meta['logEnd'])
             self.assertEqual(meta['span'],156)
 
+    def test_paired_end_marker_after_mainservice_window_is_preserved(self):
+        analyzer=Path(__file__).with_name('build_background_report.py')
+        with tempfile.TemporaryDirectory() as temp:
+            folder=Path(temp)
+            for i in range(1,5):
+                (folder/f'2026-10-19_MainService-events_{i:03}.log').write_text(record(f'14:0{i}:00.000','[m][finish] Test.Method [exec_period] 0'),encoding='utf-8')
+            (folder/'2026-10-19_UI-console.log').write_text(
+                '14:01:00.000 [INFO] Начало полного прохода [RetailCycle old]\n'
+                '14:03:00.000 [INFO] Начало полного прохода [RetailCycle current]\n'
+                '14:04:03.000 [INFO] Конец полного прохода — +63.000 с от ввода ПИН-кода до закрытия смены [RetailCycle current]\n'
+                '14:05:00.000 [ERROR] outside error\n'
+                '14:06:00.000 [INFO] Конец полного прохода [RetailCycle old]\n',encoding='utf-8')
+            output=folder/'report.html'
+            result=subprocess.run([sys.executable,'-X','utf8',str(analyzer),str(folder),'--output',str(output)],capture_output=True,encoding='utf-8')
+            self.assertEqual(result.returncode,0,result.stdout+result.stderr)
+            html=output.read_text(encoding='utf-8')
+            meta=json.JSONDecoder().raw_decode(html.split(',meta=',1)[1])[0]
+            markers=meta['console_markers']
+            self.assertEqual([m['label'] for m in markers],['Начало','Конец · 63,000 с'])
+            self.assertEqual(markers[1]['time']-markers[0]['time'],63000)
+            self.assertEqual(markers[1]['elapsed_seconds'],63)
+            self.assertTrue(meta['logEnd'].endswith('14:04:03.000'),meta['logEnd'])
+
     def test_natural_rotation_order_not_mtime(self):
         paths=[PurePosixPath(f'2026-10-09_MainService-events_{i}.log') for i in range(1,21)]
         paths.reverse()
