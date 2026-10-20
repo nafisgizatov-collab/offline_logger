@@ -181,6 +181,7 @@ def main():
     name='Ожидание завершения фоновых подзадач';kind='Ожидание'
    elif 'Waiting for the GIL' in msg or 'waiting for future' in msg:
     name=msg.split('[exec_period]',1)[0].strip();kind='Длинная задача';start=t;end=t+dur
+    if 'waiting for future' in msg and ctx:name+=' ('+method(ctx)+')'
    if name:add(process,trace,root,name,start,end,kind,str(p.relative_to(folder)),ln,thread)
    if name and kind=='RPC':
     host_match=re.search(r'\bhost:([^\s]+)',msg)

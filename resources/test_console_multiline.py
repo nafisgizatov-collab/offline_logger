@@ -31,6 +31,19 @@ class ConsoleMultilineTest(unittest.TestCase):
             self.assertEqual([x['time'] for x in meta['fps_samples']],[0,1000,2000,3000])
             self.assertEqual(rows,[])
 
+    def test_future_wait_displays_calling_method(self):
+        analyzer=Path(__file__).with_name('build_background_report.py')
+        with tempfile.TemporaryDirectory() as temp:
+            folder=Path(temp)
+            (folder/'2026-10-20_MainService-events.log').write_text(
+                '13:37:26.288\t[9104][10452]\t473899008\tINFO\ttrace\troot\t0.0.0.0\t0.0.0.0\tRetailPipeline.PreparePay/1\tclient\twaiting for future result of task 9484 [exec_period] 1740\n',encoding='utf-8')
+            result=subprocess.run([sys.executable,'-X','utf8',str(analyzer),str(folder)],capture_output=True,encoding='utf-8')
+            self.assertEqual(result.returncode,0,result.stdout+result.stderr)
+            html=(folder/'log_report.html').read_text(encoding='utf-8')
+            rows=json.JSONDecoder().raw_decode(html.split('const rows=',1)[1])[0]
+            self.assertEqual(rows[0]['name'],'waiting for future result of task 9484 (RetailPipeline.PreparePay)')
+            self.assertEqual(rows[0]['duration'],1740)
+
     def test_report_preserves_multiline_records(self):
         analyzer = Path(__file__).with_name('build_background_report.py')
         with tempfile.TemporaryDirectory() as temp:
