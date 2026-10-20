@@ -41,8 +41,8 @@ class RecentMainServiceTest(unittest.TestCase):
         analyzer=Path(__file__).with_name('build_background_report.py')
         with tempfile.TemporaryDirectory() as temp:
             folder=Path(temp)
-            for i in range(1,5):
-                (folder/f'2026-10-19_MainService-events_{i:03}.log').write_text(record(f'14:0{i}:00.000','[m][finish] Test.Method [exec_period] 0'),encoding='utf-8')
+            for i,clock in enumerate(("14:01:00.000","14:02:00.000","14:02:30.000","14:03:00.000","14:03:30.000","14:04:00.000"),1):
+                (folder/f'2026-10-19_MainService-events_{i:03}.log').write_text(record(clock,'[m][finish] Test.Method [exec_period] 0'),encoding='utf-8')
             (folder/'2026-10-19_UI-console.log').write_text(
                 '14:01:00.000 [INFO] Начало полного прохода [RetailCycle old]\n'
                 '14:03:00.000 [INFO] Начало полного прохода [RetailCycle current]\n'
@@ -65,9 +65,9 @@ class RecentMainServiceTest(unittest.TestCase):
         paths.reverse()
         paths += [PurePosixPath('2026-10-09_MainService-events.log'), PurePosixPath('2026-10-09_UI-events.log')]
         kept, selected, skipped=select_recent_mainservice(paths)
-        self.assertEqual([p.name for p in selected], [f'2026-10-09_MainService-events_{i}.log' for i in (18,19,20)])
-        self.assertEqual(len(skipped),18)
-        self.assertEqual(len(kept),4)
+        self.assertEqual([p.name for p in selected], [f'2026-10-09_MainService-events_{i}.log' for i in (16,17,18,19,20)])
+        self.assertEqual(len(skipped),16)
+        self.assertEqual(len(kept),6)
         self.assertFalse(select_recent_mainservice(selected)[2])
 
     def test_bounds_midnight_and_long_continuation(self):
@@ -77,7 +77,7 @@ class RecentMainServiceTest(unittest.TestCase):
             start,end=log_file_bounds(p)
             self.assertEqual(end-start,2000)
 
-    def test_folder_and_zip_keep_three_and_clip_other_sources(self):
+    def test_folder_and_zip_keep_five_and_clip_other_sources(self):
         analyzer=Path(__file__).with_name('build_background_report.py')
         zipper=Path(__file__).with_name('build_zip_log_report.py')
         with tempfile.TemporaryDirectory() as temp:
@@ -110,17 +110,17 @@ class RecentMainServiceTest(unittest.TestCase):
                 text=output.read_text(encoding='utf-8');decoder=json.JSONDecoder()
                 rows,end=decoder.raw_decode(text,text.index('const rows=')+len('const rows='))
                 meta,_=decoder.raw_decode(text,end+len(',meta='))
-                self.assertEqual(meta['mainservice_selection']['skipped'],17)
-                self.assertEqual(meta['logStart'],'2026-10-09 12:18:00.000')
+                self.assertEqual(meta['mainservice_selection']['skipped'],15)
+                self.assertEqual(meta['logStart'],'2026-10-09 12:16:00.000')
                 self.assertEqual(meta['logEnd'],'2026-10-09 12:20:10.000')
                 names={r['name'] for r in rows}
-                self.assertEqual({n for n in names if n.startswith('Test.Method')}, {'Test.Method18','Test.Method19','Test.Method20'})
+                self.assertEqual({n for n in names if n.startswith('Test.Method')}, {'Test.Method16','Test.Method17','Test.Method18','Test.Method19','Test.Method20'})
                 self.assertFalse({'Old.Method','Late.Method','old error','late error','Har.Hour10','Har.Hour16'} & names)
                 self.assertIn('selected error',names)
                 self.assertIn('Har.Hour12',names)
                 self.assertTrue(all(0<=r['start']<=r['end']<=meta['span'] for r in rows))
                 if script==zipper:
-                    self.assertIn('omitted 17 before extraction',result.stdout)
+                    self.assertIn('omitted 15 before extraction',result.stdout)
                     self.assertNotIn('] logs/application_logs/20261009/2026-10-09_MainService-events_001.log',result.stdout)
 
 

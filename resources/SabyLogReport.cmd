@@ -127,8 +127,8 @@ def select_recent_mainservice(files):
  def order(p):
   date=re.search(r'\d{4}-\d{2}-\d{2}',p.name)
   return (date[0] if date else '',int(pattern.search(p.name)[1] or 0),str(p))
- selected=sorted(mainfiles,key=order)[-3:]
- skipped=set(mainfiles)-set(selected) if len(mainfiles)>3 else set()
+ selected=sorted(mainfiles,key=order)[-5:]
+ skipped=set(mainfiles)-set(selected) if len(mainfiles)>5 else set()
  return [p for p in files if p not in skipped],selected,skipped
 
 def log_file_bounds(path):
