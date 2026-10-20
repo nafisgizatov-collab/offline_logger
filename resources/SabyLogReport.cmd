@@ -201,14 +201,14 @@ def main():
  for file_index,p in enumerate(files,1):
   progress('Чтение',f'{file_index}/{len(files)} · {p.name} · {p.stat().st_size/1048576:.1f} МБ');file_size=p.stat().st_size;read_bytes=0;last_progress=time.monotonic()
   process=re.sub(r'^\d{4}-\d{2}-\d{2}_','',p.name).removesuffix('-events.log');process=re.sub(r'(?:-|_)events(?:_\d+)?\.log$','',process);process='Launcher' if re.fullmatch(r'events(?:_\d+)?\.log',process) else process
-  dm=re.search(r'\d{4}-\d{2}-\d{2}',p.name);day=datetime.date.fromisoformat(dm[0]).toordinal()*86400000 if dm else 0;last=0;pending={};method_pending={}
+  dm=re.search(r'\d{4}-\d{2}-\d{2}',p.name);day=datetime.date.fromisoformat(dm[0]).toordinal()*86400000 if dm else 0;last=0;pending={};method_pending={};sql_pending={}
   def event_records(stream):
    saved=None
    for line_number,line in enumerate(stream,1):
     if re.match(r'\d\d:\d\d:\d\d\.\d{3}(?=[ \t])',line):
      if saved is not None:yield saved
      saved=(line_number,line)
-    elif saved is not None and ('[m][start]' in saved[1] or '[m][finish]' in saved[1]):saved=(saved[0],saved[1]+line)
+    elif saved is not None and ('[m][start]' in saved[1] or '[m][finish]' in saved[1] or '[sql][start]' in saved[1]):saved=(saved[0],saved[1]+line)
    if saved is not None:yield saved
   for ln,l in event_records(p.open(encoding='utf-8-sig',errors='replace')):
    read_bytes+=len(l.encode('utf-8'))
@@ -220,11 +220,15 @@ def main():
    if last-raw>43200000:day+=86400000
    last=raw;t=day+raw
    if window and not window[0]<=t<=window[1]:continue
-   log_start=t if log_start is None else min(log_start,t);log_end=t if log_end is None else max(log_end,t);c=l.rstrip().split('\t');msg=c[-1];thread=c[1] if len(c)>1 else ''
+   log_start=t if log_start is None else min(log_start,t);log_end=t if log_end is None else max(log_end,t);header,_,continuation=l.rstrip().partition('\n');c=header.split('\t');msg=c[-1]+('\n'+continuation if continuation else '');thread=c[1] if len(c)>1 else ''
    trace=c[4] if len(c)>5 else '';root=c[5] if len(c)>9 else trace;ctx=c[8] if len(c)>9 else c[5] if len(c)>5 else ''
    child=re.search(r'\bruuid:([\w-]+)',msg)
    if child and '[async call]' in msg:async_traces.add(child[1])
    if child and ('[async call]' in msg or '[rpc call][start]' in msg):edges[child[1]]=(trace,t)
+   sql_start=re.search(r'\[sql\]\[start\]\[([^\]]*)\]\[([^\]]*)\]\[([^\]]+)\]',msg)
+   if sql_start:
+    sql_key=(thread.split('][')[0],trace,sql_start[3])
+    sql_pending.setdefault(sql_key,[]).append((msg,ln))
    key=(thread,trace)
    if '[w][start]' in msg:pending[key]=(t,ctx,ln)
    method_start=re.search(r'\[m\]\[start\]\s+([^\s(]+)\((.*)\)\s*$',msg,re.S)
@@ -257,6 +261,13 @@ def main():
     name=msg.split('[exec_period]',1)[0].strip();kind='Длинная задача';start=t;end=t+dur
     if 'waiting for future' in msg and ctx:name+=' ('+method(ctx)+')'
    if name:add(process,trace,root,name,start,end,kind,str(p.relative_to(folder)),ln,thread)
+   if name and kind=='SQL':
+    sql_finish=re.search(r'\[sql\]\[finish\]\[([^\]]+)\]',msg)
+    stack=sql_pending.get((thread.split('][')[0],trace,sql_finish[1]),[]) if sql_finish else []
+    if stack:
+     sql_text,sql_line=stack.pop()
+     nodes[-1]['params']=sql_text
+     nodes[-1]['params_source']=str(p.relative_to(folder))+':'+str(sql_line)
    if name and kind=='RPC':
     host_match=re.search(r'\bhost:([^\s]+)',msg)
     if host_match and is_cloud_host(host_match[1]):nodes[-1]['has_cloud_call']=True;nodes[-1]['cloud_host']=host_match[1]

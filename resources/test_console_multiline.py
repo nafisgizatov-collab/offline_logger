@@ -31,6 +31,30 @@ class ConsoleMultilineTest(unittest.TestCase):
             self.assertEqual([x['time'] for x in meta['fps_samples']],[0,1000,2000,3000])
             self.assertEqual(rows,[])
 
+    def test_sql_parameters_match_id_trace_and_process_across_threads(self):
+        analyzer=Path(__file__).with_name('build_background_report.py')
+        with tempfile.TemporaryDirectory() as temp:
+            folder=Path(temp)
+            def record(time,thread,trace,message):
+                return f'{time}\t{thread}\t0\tINFO\t{trace}\troot\t0\t0\tSale.Pay/1\tclient\t{message}\n'
+            data=record('12:00:00.000','[1][10]','a','[sql][start][localhost/db][public][61]')+'args:\n42::int;\nstmt:\nSELECT\t* FROM "Sale" WHERE id=$1\n'
+            data+=record('12:00:00.001','[2][10]','a','[sql][start][localhost/db][public][61]')+'stmt:\nSELECT wrong_process\n'
+            data+=record('12:00:00.002','[1][11]','b','[sql][start][localhost/db][public][61]')+'stmt:\nSELECT wrong_trace\n'
+            data+=record('12:00:00.003','[1][11]','a','[sql][start][localhost/db][public][62]')+'stmt:\nSELECT other_query\n'
+            data+=record('12:00:01.533','[1][99]','a','[sql][finish][61] tuples: 465 [exec_period] 1533')
+            data+=record('12:00:01.534','[1][99]','a','[sql][finish][90] tuples: 0 [exec_period] 1')
+            (folder/'2026-10-20_MainService-events.log').write_text(data,encoding='utf-8')
+            result=subprocess.run([sys.executable,'-X','utf8',str(analyzer),str(folder)],capture_output=True,encoding='utf-8')
+            self.assertEqual(result.returncode,0,result.stdout+result.stderr)
+            html=(folder/'log_report.html').read_text(encoding='utf-8')
+            rows=json.JSONDecoder().raw_decode(html.split('const rows=',1)[1])[0]
+            sql=next(r for r in rows if r['duration']==1533)
+            self.assertIn('42::int;',sql['params'])
+            self.assertIn('SELECT\t* FROM "Sale" WHERE id=$1',sql['params'])
+            self.assertNotIn('wrong',sql['params'])
+            self.assertTrue(sql['params_source'].endswith(':1'))
+            self.assertNotIn('params',next(r for r in rows if r['duration']==1))
+
     def test_future_wait_displays_calling_method(self):
         analyzer=Path(__file__).with_name('build_background_report.py')
         with tempfile.TemporaryDirectory() as temp:
