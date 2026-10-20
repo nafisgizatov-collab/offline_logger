@@ -294,14 +294,15 @@ def main():
  for p in invokefiles:
   progress('Чтение invoke',p.name)
   for response_line,line in enumerate(p.open(encoding='utf-8-sig',errors='replace'),1):
-   if '[post request]' not in line and '[response]' not in line:continue
+   hidden_request='Имя метода:' in line and 'Параметры скрыты' in line
+   if '[post request]' not in line and '[response]' not in line and not hidden_request:continue
    c=line.rstrip().split('\t')
    if len(c)<=9:continue
    key=(c[4],method(c[8]))
-   if '[post request]' in line:invoked.add(key)
+   if '[post request]' in line or hidden_request:invoked.add(key)
    if key[0]:
     candidates=[n for n in response_nodes.get(key,[]) if Path(n['file']).parent==p.relative_to(folder).parent and re.sub(r'(?:-|_)events(?:_\d+)?\.log$','',Path(n['file']).name)==re.sub(r'(?:-|_)invoke(?:_\d+)?\.log$','',p.name)]
-    if len(candidates)==1:
+    if len(candidates)==1 and not hidden_request:
      field,marker=('params','[post request]') if '[post request]' in line else ('response','[response]')
      set_payload(candidates[0],line.split(marker,1)[1].strip(),str(p.relative_to(folder))+':'+str(response_line),field)
  for n in nodes:

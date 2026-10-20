@@ -55,6 +55,21 @@ class ConsoleMultilineTest(unittest.TestCase):
             self.assertTrue(sql['params_source'].endswith(':1'))
             self.assertNotIn('params',next(r for r in rows if r['duration']==1))
 
+    def test_hidden_invoke_parameters_still_establish_request(self):
+        analyzer=Path(__file__).with_name('build_background_report.py')
+        with tempfile.TemporaryDirectory() as temp:
+            folder=Path(temp)
+            prefix='13:34:52.040\t[1516][11012]\t0\tINFO\ttrace\ttrace\t0\t0\tSAP.UnlockSession/1\t'
+            (folder/'2026-10-20_events.log').write_text(prefix+'[w][start]\n'+prefix.replace('52.040','52.059')+'[w][finish] [exec_period] 19\n',encoding='utf-8')
+            (folder/'2026-10-20_invoke.log').write_text(prefix+'[task_id:573]\tИмя метода: SAP.UnlockSession, число параметров: 1. Параметры скрыты\n',encoding='utf-8')
+            result=subprocess.run([sys.executable,'-X','utf8',str(analyzer),str(folder)],capture_output=True,encoding='utf-8')
+            self.assertEqual(result.returncode,0,result.stdout+result.stderr)
+            html=(folder/'log_report.html').read_text(encoding='utf-8')
+            rows=json.JSONDecoder().raw_decode(html.split('const rows=',1)[1])[0]
+            self.assertTrue(rows[0]['visible'])
+            self.assertEqual(rows[0]['appearance'],'ui')
+            self.assertNotIn('params',rows[0])
+
     def test_future_wait_displays_calling_method(self):
         analyzer=Path(__file__).with_name('build_background_report.py')
         with tempfile.TemporaryDirectory() as temp:
