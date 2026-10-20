@@ -8,6 +8,29 @@ import unittest
 
 
 class ConsoleMultilineTest(unittest.TestCase):
+    def test_fps_samples_bypass_console_filters_and_do_not_become_calls(self):
+        analyzer=Path(__file__).with_name('build_background_report.py')
+        with tempfile.TemporaryDirectory() as temp:
+            folder=Path(temp)
+            (folder/'2026-10-20_MainService-events.log').write_text('',encoding='utf-8')
+            (folder/'UI-console-keys').write_text('unrelated',encoding='utf-8')
+            (folder/'UI-console-ignore').write_text('fps',encoding='utf-8')
+            (folder/'2026-10-20_UI-console.log').write_text(
+                '12:00:00.000 [INFO] fps 60\n'
+                '12:00:01.000 [INFO] fps 30.5 (resources/test.js:1)\n'
+                '12:00:02.000 [INFO] fps 0\n'
+                '12:00:03.000 [INFO] fps 59,5\n'
+                '12:00:04.000 [INFO] fps invalid\n',encoding='utf-8')
+            output=folder/'report.html'
+            result=subprocess.run([sys.executable,'-X','utf8',str(analyzer),str(folder),'--output',str(output)],capture_output=True,encoding='utf-8')
+            self.assertEqual(result.returncode,0,result.stdout+result.stderr)
+            html=output.read_text(encoding='utf-8')
+            meta=json.JSONDecoder().raw_decode(html.split(',meta=',1)[1])[0]
+            rows=json.JSONDecoder().raw_decode(html.split('const rows=',1)[1])[0]
+            self.assertEqual([x['value'] for x in meta['fps_samples']],[60,30.5,0,59.5])
+            self.assertEqual([x['time'] for x in meta['fps_samples']],[0,1000,2000,3000])
+            self.assertEqual(rows,[])
+
     def test_report_preserves_multiline_records(self):
         analyzer = Path(__file__).with_name('build_background_report.py')
         with tempfile.TemporaryDirectory() as temp:
