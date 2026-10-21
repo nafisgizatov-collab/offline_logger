@@ -24,7 +24,7 @@ def select_logs(archive):
         parts = PurePosixPath(info.filename.replace('\\', '/')).parts
         if not parts or parts[0] == '/' or '..' in parts or any(':' in part for part in parts):
             continue
-        if not parts[-1].lower().endswith(('.log', '.har')):
+        if not (parts[-1].lower().endswith(('.log', '.har')) or re.fullmatch(r'fps-[^/]+\.json',parts[-1],re.I)):
             continue
         loose.append((info, parts))
         for i, part in enumerate(parts[:-1]):
@@ -49,7 +49,7 @@ def select_logs(archive):
                 date = datetime.datetime.strptime(digits, '%Y%m%d').date()
             except ValueError:
                 continue
-            if not parts[-1].lower().endswith(('.log', '.har')):
+            if not (parts[-1].lower().endswith(('.log', '.har')) or re.fullmatch(r'fps-[^/]+\.json',parts[-1],re.I)):
                 continue
             prefix = '/'.join(parts[:i + 2])
             groups.setdefault((date, prefix), []).append((info, parts[i + 2:]))

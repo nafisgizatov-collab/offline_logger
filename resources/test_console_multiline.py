@@ -70,6 +70,26 @@ class ConsoleMultilineTest(unittest.TestCase):
             self.assertEqual(rows[0]['appearance'],'ui')
             self.assertNotIn('params',rows[0])
 
+    def test_fps_sidecar_and_zip(self):
+        import datetime,zipfile
+        analyzer=Path(__file__).with_name('build_background_report.py')
+        zipper=Path(__file__).with_name('build_zip_log_report.py')
+        with tempfile.TemporaryDirectory() as temp:
+            folder=Path(temp)/'logs';folder.mkdir()
+            (folder/'2026-10-20_MainService-events.log').write_text('12:00:00.000 start\n12:00:10.000 end\n',encoding='utf-8')
+            epoch=datetime.datetime(2026,10,20,7,tzinfo=datetime.timezone.utc).timestamp()*1000
+            (folder/'fps-test.json').write_text(json.dumps(dict(schema_version=1,timezone_offset_minutes=-300,samples=[dict(timestamp_ms=epoch+1000,duration_ms=1000,value=64),dict(timestamp_ms=epoch+9000,duration_ms=8000,value=2)])),encoding='utf-8-sig')
+            archive=Path(temp)/'logs.zip'
+            with zipfile.ZipFile(archive,'w') as z:
+                for f in folder.iterdir():z.write(f,'application_logs/20261020/'+f.name)
+            for script,source,output in [(analyzer,folder,folder/'log_report.html'),(zipper,archive,archive.with_name('logs — SabyLogReport.html'))]:
+                result=subprocess.run([sys.executable,'-X','utf8',str(script),str(source)],capture_output=True,encoding='utf-8')
+                self.assertEqual(result.returncode,0,result.stdout+result.stderr)
+                html=output.read_text(encoding='utf-8')
+                meta=json.JSONDecoder().raw_decode(html.split(',meta=',1)[1])[0]
+                self.assertEqual(meta['fps_samples'],[dict(time=1000,value=64),dict(time=9000,value=2)])
+                self.assertNotIn('sample.time-previous.time<=3000',html)
+
     def test_future_wait_displays_calling_method(self):
         analyzer=Path(__file__).with_name('build_background_report.py')
         with tempfile.TemporaryDirectory() as temp:
@@ -139,4 +159,3 @@ class ConsoleMultilineTest(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
-
