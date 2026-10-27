@@ -102,6 +102,51 @@ HTML = (
  "eplaceAll('<','\\\\u003c');\n const clone=document.documentElement.cloneNode(true);clone.querySelector('#exportState')?.remove();clone.querySelector('#downloadReport')?.parentElement.remove();\n const script=[...clone.querySelectorAll('script')].find(el=>el.textContent.includes('const rows='));\n const source=script.textContent,start=source.indexOf('const rows='),end=source.indexOf(',$=id=>',start);\n script.textContent=source.slice(0,start)+'const rows='+json(data)+',meta='+json(metadata)+source.slice(end);\n const stateElement=document.createElement('script');stateElement.id='exportState';stateElement.type='application/json';stateElement.textContent=json(state);script.before(stateElement);\n const style=document.createElement('style');style.textContent='main> :not(#scroll):not(.call-details){display:none!important}#scroll{height:auto;min-height:400px;max-height:none;overflow:visible;resize:none}';clone.querySelector('head').append(style);\n const timestamp=t=>{const origin=meta.originMs??Date.parse(meta.origin.replace(' ','T')+'Z');return new Date(origin+t).toISOString().slice(0,23).replace('T','_').replaceAll(':','-')};\n const name='report-'+timestamp(range[0])+'--'+timestamp(range[1])+'.html';clone.querySelector('title').textContent=name;\n const url=URL.createObjectURL(new Blob(['<!doctype html>\\n'+clone.outerHTML],{type:'text/html;charset=utf-8'}));const link=document.createElement('a');link.href=url;link.download=name;document.body.append(link);link.click();link.remove();setTime"
  "out(()=>URL.revokeObjectURL(url),1000);\n}\nif($('downloadReport'))$('downloadReport').onclick=exportReport;\nif($('exportState')){const state=JSON.parse($('exportState').textContent);range=state.range;rangeMode=state.rangeMode;sortDuration=state.sortDuration;for(const [id,value] of Object.entries(state.controls)){ $(id).value=value.value;$(id).checked=value.checked}for(const id of state.expanded)expanded.add(id);for(const id of state.collapsed||[])collapsed.add(id);for(const name of state.blacklist)blacklist.add(name);render();if(state.selected!==null)choose(state.selected,false)}\n\n</script></html>"
 )
+class ParentIntervalIndex:
+ """Suffix minimum over interval ends; keep two results to exclude the query itself."""
+ def __init__(self,ends):
+  from bisect import bisect_left
+  self.locate=bisect_left;self.ends=sorted(set(ends));self.size=1
+  while self.size<len(self.ends):self.size*=2
+  self.tree=[() for _ in range(2*self.size)]
+ def add(self,node,index):
+  p=self.size+self.locate(self.ends,node['end']);value=(node['duration'],index)
+  self.tree[p]=tuple(sorted(set(self.tree[p]+(value,)))[:2]);p//=2
+  while p:
+   self.tree[p]=tuple(sorted(set(self.tree[2*p]+self.tree[2*p+1]))[:2]);p//=2
+ def find(self,end,exclude):
+  lo=self.size+self.locate(self.ends,end);hi=self.size+len(self.ends);best=()
+  while lo<hi:
+   if lo&1:best=tuple(sorted(set(best+self.tree[lo]))[:2]);lo+=1
+   if hi&1:hi-=1;best=tuple(sorted(set(best+self.tree[hi]))[:2])
+   lo//=2;hi//=2
+  return next((index for _,index in best if index!=exclude),None)
+
+def assign_parents(nodes,edges,progress_callback=None):
+ # nodes are sorted by (start, -duration). Any legal same-trace parent precedes
+ # its child, including equal-boundary ties; later equal-start nodes cannot win.
+ excluded={'Длинная задача','SQL','Ожидание'};groups={};bytrace={}
+ for i,n in enumerate(nodes):
+  n['id']=i;groups.setdefault((n['trace'],n['process']),[]).append(i)
+  if n['kind'] not in excluded:bytrace.setdefault(n['trace'],[]).append(i)
+ unresolved={}
+ for ids in groups.values():
+  index=ParentIntervalIndex(nodes[i]['end'] for i in ids if nodes[i]['kind'] not in excluded)
+  for i in ids:
+   n=nodes[i];parent=index.find(n['end'],i)
+   if parent is not None:n['parent']=parent;n['relation']='Вложенность по trace и интервалу'
+   elif n['trace'] in edges:
+    trace,launch=edges[n['trace']];unresolved.setdefault(trace,[]).append((launch,i))
+   if n['kind'] not in excluded:index.add(n,i)
+ for trace,queries in unresolved.items():
+  ids=bytrace.get(trace,[]);index=ParentIntervalIndex(nodes[i]['end'] for i in ids);position=0
+  for launch,i in sorted(queries):
+   while position<len(ids) and nodes[ids[position]]['start']<=launch:
+    j=ids[position];index.add(nodes[j],j);position+=1
+   parent=index.find(launch,i)
+   if parent is not None:nodes[i]['parent']=parent;nodes[i]['relation']='Инициатор по ruuid'
+ if progress_callback:progress_callback(len(nodes))
+
 def method(s):return re.sub(r'/\d+$','',s.strip().split('->')[-1])
 START=time.monotonic()
 STATE={'stage':'Запуск','detail':''}
@@ -478,15 +523,8 @@ def main():
    save_error(current)
  progress('Построение дерева',f'{len(nodes):,} операций; поиск инициаторов')
  # Build initiator tree: explicit trace edges first, then tight containment in the same trace/thread.
- nodes.sort(key=lambda n:(n['start'],-n['duration']));bytrace={}
- for i,n in enumerate(nodes):n['id']=i;bytrace.setdefault(n['trace'],[]).append(i)
- for i,n in enumerate(nodes):
-  if i%2000==0:STATE['detail']=f'{i:,}/{len(nodes):,} операций'
-  candidates=[j for j in bytrace.get(n['trace'],[]) if j!=i and nodes[j]['process']==n['process'] and nodes[j]['start']<=n['start'] and nodes[j]['end']>=n['end'] and (nodes[j]['duration']>n['duration'] or j<i) and nodes[j]['kind'] not in ('Длинная задача','SQL','Ожидание')]
-  if candidates:n['parent']=min(candidates,key=lambda j:nodes[j]['duration']);n['relation']='Вложенность по trace и интервалу'
-  elif n['trace'] in edges:
-   parenttrace,launch=edges[n['trace']];candidates=[j for j in bytrace.get(parenttrace,[]) if j!=i and nodes[j]['start']<=launch<=nodes[j]['end'] and nodes[j]['kind'] not in ('Длинная задача','SQL','Ожидание')]
-   if candidates:n['parent']=min(candidates,key=lambda j:nodes[j]['duration']);n['relation']='Инициатор по ruuid'
+ nodes.sort(key=lambda n:(n['start'],-n['duration']))
+ assign_parents(nodes,edges,lambda count:STATE.update(detail=f'{count:,}/{count:,} операций'))
  progress('Проверка дерева',f'{len(nodes):,} операций')
  # Guard cycles from malformed or ambiguous logs.
  for n in nodes:

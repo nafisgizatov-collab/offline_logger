@@ -40,3 +40,4 @@ __pycache__/
 !/resources/UpdateSabyLogger.cmd
 !/resources/PythonRuntime.ps1
 !/resources/RunPythonReport.ps1
+!/resources/test_parent_index.py
